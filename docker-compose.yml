@@ -1,0 +1,38 @@
+version: "3.9"
+
+volumes:
+  mysql_data:
+
+services:
+  db:
+    image: mysql:8.4
+    container_name: mysql_dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_ROOT_HOST: "%"
+      TZ: ${TZ:-UTC}
+    ports:
+      - "3307:3306"  
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin_dev
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ""
+      UPLOAD_LIMIT: 512M
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy

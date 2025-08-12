@@ -1,0 +1,8 @@
+.env
+pg_data/
+redis_data/
+mysql_data/
+meili_data/
+minio_data/
+
+*.zip
