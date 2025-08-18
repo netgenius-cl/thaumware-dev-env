@@ -2,18 +2,22 @@ version: "3.9"
 
 volumes:
   mysql_data:
+  redis_data:
+  mssql_data:
+  dbgate_data:
 
 services:
+  # --- MySQL (tu config base) ---
   db:
     image: mysql:8.4
     container_name: mysql_dev
     restart: unless-stopped
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes" # solo dev
       MYSQL_ROOT_HOST: "%"
       TZ: ${TZ:-UTC}
     ports:
-      - "3307:3306"  
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -36,3 +40,71 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # --- Redis ---
+  redis:
+    image: redis:7-alpine
+    container_name: thaum_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"] # persistencia AOF
+    environment:
+      TZ: ${TZ:-UTC}
+    ports:
+      - "6379:6379" # opcional si solo lo usas dentro de la red de docker
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # UI para Redis
+  redis_commander:
+    image: rediscommander/redis-commander:latest
+    container_name: thaum_redis_ui
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+  # --- SQL Server 2022 ---
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: thaum_mssql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Th@umware2025!} # cambia en .env
+      MSSQL_PID: "Developer" # Developer/Express/Standard/Enterprise
+      TZ: ${TZ:-UTC}
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    # Nota: el contenedor de server no trae sqlcmd; usamos un healthcheck simple de proceso
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x sqlservr >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  # Manager web para SQL Server (multi-DB)
+  dbgate:
+    image: dbgate/dbgate:latest
+    container_name: thaum_mssql_ui
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      # Puedes preconfigurar conexiones más adelante con variables,
+      # por ahora entras a la UI y agregas MSSQL apuntando a host "mssql", puerto 1433
+    volumes:
+      - dbgate_data:/root/.dbgate
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mssql
