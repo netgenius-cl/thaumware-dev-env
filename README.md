@@ -5,6 +5,8 @@
 cp .env.example .env
 docker compose up -d
 
+Docker para levantar herramientas para desarrollo
+
 Servicios:
 
 - Postgres: 127.0.0.1:5433 (user: PG_USER, db: PG_DATABASE)
